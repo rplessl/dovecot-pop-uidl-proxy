@@ -1,6 +1,7 @@
-/* Copyright (c) 2014 Roman Plessl, roman@plessl.info
-   LICENSE is LGPL 
-   see the included COPYING and COPYING.LGPL file */
+/* Copyright (c) 2014 Roman Plessl, roman@plessl.info */
+/* LICENSE is LGPL                                    */
+/* see the included COPYING and COPYING.LGPL file     */
+
 #include "lib.h"
 #include "pop3-uidl-proxy-plugin.h"
 
