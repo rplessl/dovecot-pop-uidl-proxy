@@ -26,6 +26,7 @@ SUBDIRS = \
 	quota \
 	imap-quota \
 	pop3-migration \
+	pop3-uidl-proxy \
 	replication \
 	snarf \
 	stats \
