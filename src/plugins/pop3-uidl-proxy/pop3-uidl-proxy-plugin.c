@@ -116,7 +116,7 @@ static void pop3_uidl_proxy_mail_allocated(struct mail *_mail)
 		return;
 	}
 
-	i_debug("pop3_uidl_proxy_mail_allocated mstorage is not null");
+	i_debug("pop3_uidl_proxy_mail_allocated mstorage is not NULL");
 
 	ns = mail_namespace_find(
 		_mail->box->storage->user->namespaces,
@@ -125,11 +125,11 @@ static void pop3_uidl_proxy_mail_allocated(struct mail *_mail)
 	i_debug("pop3_uidl_proxy_mail_allocated ns %s", ns);
 
 	if (ns == mailbox_get_namespace(_mail->box)) {
-		/* we're accessing the pop3-migration namespace itself */
+		/* we're accessing the pop3-uidl-proxy namespace itself */
 		return;
 	}
 	
-	i_debug("pop3_uidl_proxy_mail_allocated ns ok");
+	i_debug("pop3_uidl_proxy_mail_allocated ns OK");
 
 	mmail = p_new(mail->pool, union mail_module_context, 1);
 	mmail->super = *v;
@@ -139,6 +139,8 @@ static void pop3_uidl_proxy_mail_allocated(struct mail *_mail)
 
 	MODULE_CONTEXT_SET_SELF(mail, pop3_uidl_proxy_mail_module, mmail);
 }
+
+/* FIXME: Check done */
 
 static void pop3_uidl_proxy_mailbox_allocated(struct mailbox *box)
 {
@@ -157,25 +159,25 @@ static void pop3_uidl_proxy_mail_storage_destroy(struct mail_storage *storage)
 	struct pop3_uidl_proxy_mail_storage *mstorage =
 		POP3_UIDL_PROXY_CONTEXT(storage);
 
+	if (array_is_created(&mstorage->pop3_uidl_map))
+		array_free(&mstorage->pop3_uidl_map);
+
 	mstorage->module_ctx.super.destroy(storage);
 }
 
 static void pop3_uidl_proxy_mail_storage_created(struct mail_storage *storage)
 {
-	i_debug("pop3_uidl_proxy_mail_storage created");
-
 	struct pop3_uidl_proxy_mail_storage *mstorage;
 	struct mail_storage_vfuncs *v = storage->vlast;
 	const char *pop3_box_vname;
 
+	i_debug("pop3_uidl_proxy_mail_storage created");
+
 	pop3_box_vname = mail_user_plugin_getenv(storage->user,
 						 "pop3_uidl_proxy_mailbox");
-
-	i_debug("pop3_uidl_proxy_mail_storage pop3_box_vname %s", pop3_box_vname);
-
 	if (pop3_box_vname == NULL)
 		return;
-
+		
 	mstorage = p_new(storage->pool, struct pop3_uidl_proxy_mail_storage, 1);
 	mstorage->module_ctx.super = *v;
 	storage->vlast = &mstorage->module_ctx.super;
@@ -186,7 +188,8 @@ static void pop3_uidl_proxy_mail_storage_created(struct mail_storage *storage)
 		mail_user_plugin_getenv(storage->user,
 					"pop3_uidl_proxy_all_mailboxes") != NULL;
 
-	i_debug("pop3_uidl_proxy_mail_storage mstorage->all_mailboxes %s", mstorage->all_mailboxes);
+	i_debug("pop3_uidl_proxy_mail_storage mstorage->pop3_box_vname: %s", mstorage->pop3_box_vname);
+	i_debug("pop3_uidl_proxy_mail_storage mstorage->all_mailboxes: %s", mstorage->all_mailboxes);
 
 	MODULE_CONTEXT_SET(storage, pop3_uidl_proxy_storage_module, mstorage);
 }
