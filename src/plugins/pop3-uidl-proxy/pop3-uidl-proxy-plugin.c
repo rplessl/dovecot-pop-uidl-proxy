@@ -4,6 +4,8 @@
 
 #include "lib.h"
 #include "array.h"
+#include "istream.h"
+#include "istream-header-filter.h"
 #include "sha1.h"
 #include "mail-namespace.h"
 #include "mail-search-build.h"
@@ -25,6 +27,16 @@ struct pop3_uidl_map {
 	/* LIST size */
 	uoff_t size;
 	/* sha1(TOP 0) - set only when needed */
+	unsigned char hdr_sha1[SHA1_RESULTLEN];
+	unsigned int hdr_sha1_set:1;
+};
+
+struct imap_msg_map {
+	uint32_t uid, pop3_seq;
+	uoff_t psize;
+	const char *pop3_uidl;
+
+	/* sha1(header) - set only when needed */
 	unsigned char hdr_sha1[SHA1_RESULTLEN];
 	unsigned int hdr_sha1_set:1;
 };
@@ -57,16 +69,30 @@ const char *pop3_uidl_proxy_plugin_version = DOVECOT_ABI_VERSION;
 
 /* FIXME: Work in Progress */
 
+
 static int pop3_uidl_proxy_get_special(struct mail *_mail, enum mail_fetch_field field, const char **value_r)
 {
 	struct mail_private *mail = (struct mail_private *)_mail;
 	union  mail_module_context *mmail = POP3_UIDL_PROXY_MAIL_CONTEXT(mail);
 	struct pop3_uidl_proxy_mailbox *mbox = POP3_UIDL_PROXY_CONTEXT(_mail->box);	
 
+	struct pop3_uidl_map *map;
+	
+	char* msg = (char*)malloc(sizeof(char) * 10);
+	strcpy(msg, "123456789\0");
+
+	// i_debug("pop3_uidl_proxy_get_special");
+	// i_debug("pop3_uidl_proxy_get_special field %u", field);
+
 	if (field == MAIL_FETCH_UIDL_BACKEND ||
 	    field == MAIL_FETCH_POP3_ORDER) {
-			
-		*value_r = t_strdup_printf("%u", 123456789);
+		
+		i_debug("pop3_uidl_proxy_get_special field %u matching", field);
+		i_debug("pop3_uidl_proxy_get_special field %u value %s", field, msg);
+				
+		*value_r = msg;		
+		return 0;
+
 	}
 	return mmail->super.get_special(_mail, field, value_r);
 }
@@ -82,25 +108,35 @@ static void pop3_uidl_proxy_mail_allocated(struct mail *_mail)
 	union mail_module_context *mmail;
 	struct mail_namespace *ns;
 
+	i_debug("pop3_uidl_proxy_mail_allocated called");
+
 	if (mstorage == NULL ||
 	    (!mstorage->all_mailboxes && !_mail->box->inbox_user)) {
 		/* assigns UIDLs only for INBOX */
 		return;
 	}
 
+	i_debug("pop3_uidl_proxy_mail_allocated mstorage is not null");
+
 	ns = mail_namespace_find(
 		_mail->box->storage->user->namespaces,
 		mstorage->pop3_box_vname);
+	
+	i_debug("pop3_uidl_proxy_mail_allocated ns %s", ns);
+
 	if (ns == mailbox_get_namespace(_mail->box)) {
 		/* we're accessing the pop3-migration namespace itself */
 		return;
 	}
+	
+	i_debug("pop3_uidl_proxy_mail_allocated ns ok");
 
 	mmail = p_new(mail->pool, union mail_module_context, 1);
 	mmail->super = *v;
 	mail->vlast = &mmail->super;
 
 	v->get_special = pop3_uidl_proxy_get_special;
+
 	MODULE_CONTEXT_SET_SELF(mail, pop3_uidl_proxy_mail_module, mmail);
 }
 
@@ -134,6 +170,9 @@ static void pop3_uidl_proxy_mail_storage_created(struct mail_storage *storage)
 
 	pop3_box_vname = mail_user_plugin_getenv(storage->user,
 						 "pop3_uidl_proxy_mailbox");
+
+	i_debug("pop3_uidl_proxy_mail_storage pop3_box_vname %s", pop3_box_vname);
+
 	if (pop3_box_vname == NULL)
 		return;
 
@@ -146,6 +185,8 @@ static void pop3_uidl_proxy_mail_storage_created(struct mail_storage *storage)
 	mstorage->all_mailboxes =
 		mail_user_plugin_getenv(storage->user,
 					"pop3_uidl_proxy_all_mailboxes") != NULL;
+
+	i_debug("pop3_uidl_proxy_mail_storage mstorage->all_mailboxes %s", mstorage->all_mailboxes);
 
 	MODULE_CONTEXT_SET(storage, pop3_uidl_proxy_storage_module, mstorage);
 }
