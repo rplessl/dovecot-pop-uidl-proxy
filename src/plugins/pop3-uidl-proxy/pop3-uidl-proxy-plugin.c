@@ -3,7 +3,10 @@
 /* see the included COPYING and COPYING.LGPL file     */
 
 #include <sqlite3.h>
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "lib.h"
 #include "array.h"
@@ -14,6 +17,8 @@
 #include "mail-namespace.h"
 #include "mail-search-build.h"
 #include "mail-storage-private.h"
+// CLEANUP: not used at the moment
+// #include "mail-user.h"
 
 #include "pop3-uidl-proxy-plugin.h"
 
@@ -22,6 +27,11 @@
 
 #define POP3_UIDL_PROXY_MAIL_CONTEXT(obj) \
 	MODULE_CONTEXT(obj, pop3_uidl_proxy_mail_module)
+
+// CLEANUP: not used at the moment
+// #define POP3_UIDL_PROXY_USER_CONTEXT(obj) \
+//         MODULE_CONTEXT(obj, mail_uidl_proxy_user_module)
+
 
 struct pop3_uidl_map {
 	uint32_t pop3_seq;
@@ -32,16 +42,6 @@ struct pop3_uidl_map {
 	/* LIST size */
 	uoff_t size;
 	/* sha1(TOP 0) - set only when needed */
-	unsigned char hdr_sha1[SHA1_RESULTLEN];
-	unsigned int hdr_sha1_set:1;
-};
-
-struct imap_msg_map {
-	uint32_t uid, pop3_seq;
-	uoff_t psize;
-	const char *pop3_uidl;
-
-	/* sha1(header) - set only when needed */
 	unsigned char hdr_sha1[SHA1_RESULTLEN];
 	unsigned int hdr_sha1_set:1;
 };
@@ -65,10 +65,14 @@ struct pop3_uidl_proxy_mailbox {
 };
 
 static MODULE_CONTEXT_DEFINE_INIT(pop3_uidl_proxy_storage_module,
-				  &mail_storage_module_register);
+					&mail_storage_module_register);
 
 static MODULE_CONTEXT_DEFINE_INIT(pop3_uidl_proxy_mail_module,
-				  &mail_module_register);
+					&mail_module_register);
+// CLEANUP: not used at the moment
+// static MODULE_CONTEXT_DEFINE_INIT(pop3_uidl_proxy_user_module,
+//					&mail_user_module_register);
+
 
 const char *pop3_uidl_proxy_plugin_version = DOVECOT_ABI_VERSION;
 
@@ -99,7 +103,7 @@ static int pop3_map_read(struct mail_storage *storage, struct mailbox *pop3_box)
 	uoff_t size;
 	int ret = 0;
 
-	i_debug ("pop3_map_read reached!\n");
+	i_debug ("pop3_map_read start reached!");
 
 	i_array_init(&mstorage->pop3_uidl_map, 128);
 
@@ -112,8 +116,7 @@ static int pop3_map_read(struct mail_storage *storage, struct mailbox *pop3_box)
 	t = mailbox_transaction_begin(pop3_box, 0);
 	search_args = mail_search_build_init();
 	mail_search_build_add_all(search_args);
-	ctx = mailbox_search_init(t, search_args, NULL,
-				  MAIL_FETCH_VIRTUAL_SIZE, NULL);
+	ctx = mailbox_search_init(t, search_args, NULL, MAIL_FETCH_VIRTUAL_SIZE, NULL);
 	mail_search_args_unref(&search_args);
 
 	while (mailbox_search_next(ctx, &mail)) {
@@ -133,11 +136,11 @@ static int pop3_map_read(struct mail_storage *storage, struct mailbox *pop3_box)
 		}
 		if (*uidl == '\0') {
 			i_warning("pop3_uidl_proxy: UIDL for msg %u is empty",
-				  mail->seq);
+				mail->seq);
 			continue;
 		}
 
-		i_debug("UIDL = %s", uidl);
+		i_debug("pop3_uidl_proxy - pop3_map_read - UIDL = %s", uidl);
 
 		map = array_append_space(&mstorage->pop3_uidl_map);
 		map->pop3_seq = mail->seq;
@@ -161,13 +164,15 @@ static struct mailbox *pop3_mailbox_alloc(struct mail_storage *storage)
 	ns = mail_namespace_find(storage->user->namespaces,
 				 mstorage->pop3_box_vname);
 	i_assert(ns != NULL);
-	return mailbox_alloc(ns->list, mstorage->pop3_box_vname,
-			     MAILBOX_FLAG_READONLY | MAILBOX_FLAG_POP3_SESSION);
+	return mailbox_alloc(ns->list, 
+				mstorage->pop3_box_vname,
+			    MAILBOX_FLAG_READONLY | MAILBOX_FLAG_POP3_SESSION);
 }
 
 static int pop3_uidl_proxy_uidl_sync(struct mailbox *box)
 {
-	struct pop3_uidl_proxy_mailbox *mbox = POP3_UIDL_PROXY_CONTEXT(box);
+	struct pop3_uidl_proxy_mailbox *mbox = 
+		POP3_UIDL_PROXY_CONTEXT(box);
 	struct pop3_uidl_proxy_mail_storage *mstorage =
 		POP3_UIDL_PROXY_CONTEXT(box->storage);
 	struct mailbox *pop3_box;
@@ -182,27 +187,26 @@ static int pop3_uidl_proxy_uidl_sync(struct mailbox *box)
 	/* the POP3 server isn't connected to yet. handle all IMAP traffic
 	   first before connecting, so POP3 server won't disconnect us due to
 	   idling. */
-	if ( //imap_map_read(box) < 0 ||
-	    pop3_map_read(box->storage, pop3_box) < 0) {
+	if (pop3_map_read(box->storage, pop3_box) < 0) {
 		mailbox_free(&pop3_box);
 		return -1;
 	}
 	
 
 	// /* see if the POP3 UIDL order is the same as IMAP UID order */
-	// mbox->uidl_ordered = TRUE;
+	mbox->uidl_ordered = TRUE;
 	pop3_map = array_get(&mstorage->pop3_uidl_map, &count);
-	// prev_uid = 0;
-	// for (i = 0; i < count; i++) {
-	// 	if (pop3_map[i].imap_uid == 0)
-	// 		continue;
+	prev_uid = 0;
+	for (i = 0; i < count; i++) {
+	 	if (pop3_map[i].imap_uid == 0)
+	 		continue;
 
-	// 	if (prev_uid > pop3_map[i].imap_uid) {
-	// 		mbox->uidl_ordered = FALSE;
-	// 		break;
-	// 	}
-	// 	prev_uid = pop3_map[i].imap_uid;
-	// }
+	 	if (prev_uid > pop3_map[i].imap_uid) {
+	 		mbox->uidl_ordered = FALSE;
+	 		break;
+	 	}
+	 	prev_uid = pop3_map[i].imap_uid;
+	}
 
 	mbox->uidl_synced = TRUE;
 	mailbox_free(&pop3_box);
@@ -214,27 +218,56 @@ static int pop3_uidl_proxy_get_special(struct mail *_mail, enum mail_fetch_field
 {
 	struct mail_private *mail = (struct mail_private *)_mail;
 	union  mail_module_context *mmail = 
-	POP3_UIDL_PROXY_MAIL_CONTEXT(mail);
-	struct pop3_uidl_proxy_mail_storage *mstorage =
-	POP3_UIDL_PROXY_CONTEXT(_mail->box);
+		POP3_UIDL_PROXY_MAIL_CONTEXT(mail);
 	struct pop3_uidl_proxy_mailbox *mbox = 
-	POP3_UIDL_PROXY_CONTEXT(_mail->box);	
+		POP3_UIDL_PROXY_CONTEXT(_mail->box);	
+	struct pop3_uidl_proxy_mail_storage *mstorage =
+		POP3_UIDL_PROXY_CONTEXT(_mail->box->storage);
 
 	struct pop3_uidl_map *pop3_map;	
 	unsigned int i, count;
+	const char *username; 
 
-	sqlite3 *conn;
+	/* sqlite handling */
+	sqlite3 		*conn;
 	sqlite3_stmt    *res;
-	int     error = 0;
-	int     rec_count = 0;
+	int     		error = 0;
+	int     		rec_count = 0;
 	const char      *errMSG;
 	const char      *tail;
+	const char      *dbfilename;
+	const char		*dbpath;
 
-	error = sqlite3_open("/home/rplessl/opt/dovecot-2.2-build/var/lib/dovecot/uidl-proxy-databases/rplessl.db", &conn);
+	/* fetch POP3 username from enviroment - set by pop3c */
+	username = getenv("POP3C_USERNAME");
+	i_debug("pop3c_username taken from environment %s", username);
+
+	/* open and handle sqlite database for user */
+	// FIXME:
+	// dbpath = mail_user_plugin_getenv(mbox,
+	//					 "pop3_uidl_proxy_databases_path");
+	dbpath = "/tmp/abc";
+	if (dbpath == NULL)
+		return -1;		
+	
+	// FIXME
+	// sprintf(dbfilename, "%s/%s", dbpath, username);
+	string_t *tdbfilename = t_str_new(256);
+	str_append(tdbfilename, "/home/rplessl/opt/dovecot-2.2-build/var/lib/dovecot/uidl-proxy-databases");
+	str_append(tdbfilename, "/");
+	str_printfa(tdbfilename, "%s", username);
+	str_append(tdbfilename, ".db");
+	
+	error = sqlite3_open(str_c(tdbfilename), &conn);
 	if (error) {
-		i_debug("Can not open database");
+		i_debug("Can not open database: %s", str_c(tdbfilename));
+	} 
+	else {
+		i_debug("open database: %s", str_c(tdbfilename));
 	}
 
+	// CLEANUP: 
+	// 		not used at the moment
 	// error = sqlite3_exec(conn,
 	// 	"UPDATE mapping SET zuidl=\'5055559999\' WHERE uidl_seq=3", 0, 0, 0);
 
@@ -243,12 +276,12 @@ static int pop3_uidl_proxy_get_special(struct mail *_mail, enum mail_fetch_field
 		1000, &res, &tail);
 
 	if (error != SQLITE_OK) {
-		i_debug("We did not get any data!");
+		i_debug("We did not get any data from the SQLite DB!");
 		sqlite3_finalize(res);
 		sqlite3_close(conn);
 	}
 
-
+	/* Test Debug Output of the SQLite DB */
 	while (sqlite3_step(res) == SQLITE_ROW) {
     	i_debug("%u",  sqlite3_column_int( res, 0));
 		i_debug("%s",  sqlite3_column_text(res, 1));
@@ -256,56 +289,43 @@ static int pop3_uidl_proxy_get_special(struct mail *_mail, enum mail_fetch_field
 		i_debug("%s",  sqlite3_column_text(res, 3));    	
 		rec_count++;
 	}
-
 	i_debug("We received %d records in the mapping table", rec_count);
 
 
+	// CLEANUP:
+	// 		Lightly cleanup code here
+
 	char* msg = (char*)malloc(sizeof(char) * 30);
 	strcpy(msg, "123456789\0");
-
-	// char* sqlquery = (char*)malloc(sizeof(char) * 100);
-
-/*
-    T_BEGIN {
-        string_t *query = t_str_new(256);
-        str_append(query, "SELECT zuidl FROM mapping ");                    
-        sql_where_build(query);
-        result = sql_query_s(db, str_c(query));
-    } T_END;
-*/
 
     if (field == MAIL_FETCH_UIDL_BACKEND ||
     	field == MAIL_FETCH_POP3_ORDER) {
 
     	pop3_uidl_proxy_uidl_sync(_mail->box);
-
 	    pop3_map = array_get(&mstorage->pop3_uidl_map, &count);
 
-	    // i_debug("pop3_uidl_proxy_get_special field %u matching", (char *) *value_r);
-	    // i_debug("pop3_uidl_proxy_get_special field %u matching", field);
-
-		count = 2;
-
+	    // CLEANUP: 
+	    //		Print pop3 map
+	   	i_debug("count %u", count);
+		for (i = 0; i < count; i++) {			   	
+			i_debug("%u: pop3_map[%u].pop3_uidl: %s", i, i, pop3_map[i].pop3_uidl);
+		}	
+	    
 	    for (i = 0; i < count; i++) {
-				 
-	    	// NOT WORKING
+			string_t *query = t_str_new(256);
+			str_append(query, "SELECT cuidl FROM mapping ");                    
+			str_append(query, "WHERE ");
+			str_printfa(query, "zuidl = '%s'", pop3_map[i].pop3_uidl);   
 
-			// string_t *query = t_str_new(256);
-			// str_append(query, "SELECT cuidl FROM mapping ");                    
-			// str_append(query, "WHERE ");
-			// str_printfa(query, "zuidl = '%s'", pop3_map[i].pop3_uidl);   
-
-			// error = sqlite3_prepare_v2(conn,
-			//	(char*) query, 1000, &res, &tail);
+			error = sqlite3_prepare_v2(conn, str_c(query), 1000, &res, &tail);
 
 	    	// WORKING
-
-	    	 error = sqlite3_prepare_v2(conn,
-	    		"SELECT cuidl FROM mapping WHERE zuidl = '262.AdilAtzDMypFIP1Snde,Q2u1aMkA2yjjZVCstCY5Fbc='", 1000, &res, &tail);
+	    	// error = sqlite3_prepare_v2(conn,
+	    	// 	"SELECT cuidl FROM mapping WHERE zuidl = '262.AdilAtzDMypFIP1Snde,Q2u1aMkA2yjjZVCstCY5Fbc='", 1000, &res, &tail);
 
 	 		// i_debug("pop3_uidl: %s", pop3_map[i].pop3_uidl);
  			
- 			// sprintf(sqlquery, "SELECT cuidl FROM mapping WHERE zuidl = '%s'\0", pop3_map[i].pop3_uidl);
+ 			// sprintf(sqlquery, "SELECT cuidl FROM mapping WHERE zuidl = '%s'\0", );
 
 			
 			// error = sqlite3_prepare_v2(conn,
@@ -314,8 +334,8 @@ static int pop3_uidl_proxy_get_special(struct mail *_mail, enum mail_fetch_field
 
 	    	if (error != SQLITE_OK) {
 	    		i_debug("We did not get any data!");
-	    		sqlite3_finalize(res);
-	    		sqlite3_close(conn);
+	    		// sqlite3_finalize(res);
+	    		// sqlite3_close(conn);
 	    	}
 
 	    	while (sqlite3_step(res) == SQLITE_ROW) {
