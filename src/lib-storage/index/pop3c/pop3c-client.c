@@ -76,6 +76,9 @@ pop3c_client_init(const struct pop3c_client_settings *set)
 	const char *error;
 	pool_t pool;
 
+	// CLEANUP: Remove Warning
+	i_warning("pop3c_client_init called");
+
 	pool = pool_alloconly_create("pop3c client", 1024);
 	client = p_new(pool, struct pop3c_client, 1);
 	client->pool = pool;
@@ -86,6 +89,12 @@ pop3c_client_init(const struct pop3c_client_settings *set)
 	client->set.port = set->port;
 	client->set.master_user = p_strdup_empty(pool, set->master_user);
 	client->set.username = p_strdup(pool, set->username);
+
+	// CLEANUP: remove warning
+	i_warning("pop3c_client_init: username %s", client->set.username);
+	env_put(t_strconcat("POP3C_USERNAME=", 
+						client->set.username, NULL));
+
 	client->set.password = p_strdup(pool, set->password);
 	client->set.dns_client_socket_path =
 		p_strdup(pool, set->dns_client_socket_path);
