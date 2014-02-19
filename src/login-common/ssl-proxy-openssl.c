@@ -1,4 +1,4 @@
-/* Copyright (c) 2002-2013 Dovecot authors, see the included COPYING file */
+x/* Copyright (c) 2002-2013 Dovecot authors, see the included COPYING file */
 
 #include "login-common.h"
 #include "array.h"
@@ -41,6 +41,8 @@
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME /* FIXME: this may be unnecessary.. */
 #  undef HAVE_SSL_GET_SERVERNAME
 #endif
+
+static const char hexcodes[] = "0123456789ABCDEF";
 
 enum ssl_io_action {
 	SSL_ADD_INPUT,
@@ -98,6 +100,7 @@ struct ssl_server_context {
 	const char *ca;
 	const char *cipher_list;
 	const char *protocols;
+	unsigned int verify_depth;
 	bool verify_client_cert;
 	bool prefer_server_ciphers;
 };
@@ -156,6 +159,8 @@ static int ssl_server_context_cmp(const struct ssl_server_context *ctx1,
 	if (null_strcmp(ctx1->ca, ctx2->ca) != 0)
 		return 1;
 	if (null_strcmp(ctx1->cipher_list, ctx2->cipher_list) != 0)
+		return 1;
+	if (null_strcmp(ctx1->verify_depth != ctx2->verify_depth) != 0)
 		return 1;
 	if (null_strcmp(ctx1->protocols, ctx2->protocols) != 0)
 		return 1;
@@ -635,6 +640,7 @@ ssl_server_context_get(const struct login_settings *login_set,
 	lookup_ctx.key = set->ssl_key;
 	lookup_ctx.ca = set->ssl_ca;
 	lookup_ctx.cipher_list = set->ssl_cipher_list;
+	lookup_ctx.verify_depth = set->ssl_verify_depth;
 	lookup_ctx.protocols = set->ssl_protocols;
 	lookup_ctx.verify_client_cert = set->ssl_verify_client_cert ||
 		login_set->auth_ssl_require_client_cert ||
@@ -735,6 +741,9 @@ const char *ssl_proxy_get_peer_name(struct ssl_proxy *proxy)
 		}
 	}
 	X509_free(x509);
+ 
+ 	if (proxy->set->ssl_cert_info) 
+        i_info("x509 name found in certificate \"%s\" ...", name);
 	
 	return *name == '\0' ? NULL : name;
 }
@@ -1271,6 +1280,7 @@ ssl_server_context_init(const struct login_settings *login_set,
 	ctx->key = p_strdup(pool, ssl_set->ssl_key);
 	ctx->ca = p_strdup(pool, ssl_set->ssl_ca);
 	ctx->cipher_list = p_strdup(pool, ssl_set->ssl_cipher_list);
+	ctx->verify_depth = set->ssl_verify_depth;
 	ctx->protocols = p_strdup(pool, ssl_set->ssl_protocols);
 	ctx->verify_client_cert = ssl_set->ssl_verify_client_cert ||
 		login_set->auth_ssl_require_client_cert ||
@@ -1281,6 +1291,17 @@ ssl_server_context_init(const struct login_settings *login_set,
 	if (ssl_ctx == NULL)
 		i_fatal("SSL_CTX_new() failed");
 	xnames = ssl_proxy_ctx_init(ssl_ctx, ssl_set, ctx->verify_client_cert);
+
+	/* 	Note: we add one to the configured depth purposefully.  As noted
+	   	in the OpenSSL man pages, the verification process will silently
+	   	stop at the configured depth, and the error messages ensuing will
+		be that of an incomplete certificate chain, rather than the	
+		"chain too long" error that might be expected. To log the "chain
+		too long" condition, we add one to the configured depth, and catch,
+		in the verify callback, the exceeding of the actual depth.
+	*/
+
+    SSL_CTX_set_verify_depth(ssl_ctx, ctx->verify_depth + 1);
 
 	if (SSL_CTX_set_cipher_list(ssl_ctx, ctx->cipher_list) != 1) {
 		i_fatal("Can't set cipher list to '%s': %s",
@@ -1435,6 +1456,133 @@ void ssl_proxy_deinit(void)
 	}
 	EVP_cleanup();
 	ERR_free_strings();
+}
+
+const char *ssl_proxy_get_fingerprint(struct ssl_proxy *proxy)
+{
+    return __ssl_proxy_get_fingerprint(proxy, 0);
+}
+
+const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode)
+{
+    X509 *x509;
+    char *peer_fingerprint = NULL;
+    char *ssl_cert_md_algorithm = NULL;
+    const struct login_settings *set = global_login_settings;
+    const EVP_MD *md_alg;
+    unsigned char md_buf[EVP_MAX_MD_SIZE];
+    unsigned int md_len;
+    int j;
+
+    /* begin base64: needed for base64 handling */
+    char *fingerprint_ascii_ptr = NULL;
+    char arr[21];
+    int index = 0;
+    int num = 0;
+    /* end base64 */
+    
+    if (!ssl_proxy_has_valid_client_cert(proxy))
+        return NULL;
+
+    x509 = SSL_get_peer_certificate(proxy->ssl);
+    if (x509 == NULL)
+        return NULL; /* we should have had it.. */
+
+    ssl_cert_md_algorithm = set->ssl_cert_md_algorithm;
+    
+    if ((md_alg = EVP_get_digestbyname(ssl_cert_md_algorithm)) == 0) {
+        i_panic("Certificate digest algorithm \"%s\" not found ...",
+                ssl_cert_md_algorithm);
+    }
+
+    /* Fails when serialization to ASN.1 runs out of memory */
+    if (X509_digest(x509, md_alg, md_buf, &md_len) == 0) {
+        i_fatal("Certificate error computing certificate %s digest (out of memory?)",
+                ssl_cert_md_algorithm);
+    }
+
+    /* Check for OpenSSL contract violation */
+    if (md_len > EVP_MAX_MD_SIZE || md_len >= INT_MAX / 3)
+        i_panic("unexpectedly large %s digest size: %u",
+                ssl_cert_md_algorithm, md_len);
+    
+    peer_fingerprint = i_malloc(md_len * 3);
+    
+    for (j = 0; j < (int) md_len; j++) {
+        if (!base64mode) {
+            peer_fingerprint[j * 3] = hexcodes[(md_buf[j] & 0xf0) >> 4U];
+            peer_fingerprint[(j * 3) + 1] = hexcodes[(md_buf[j] & 0x0f)];
+            if (j + 1 != (int) md_len) {
+                peer_fingerprint[(j * 3) + 2] = ':';
+            } else {
+                peer_fingerprint[(j * 3) + 2] = '\0';
+            }
+        } else {
+            peer_fingerprint[j * 2] = hexcodes[(md_buf[j] & 0xf0) >> 4U];
+            peer_fingerprint[(j * 2) + 1] = hexcodes[(md_buf[j] & 0x0f)];
+        }
+        
+        if (proxy->set->ssl_cert_debug) {
+            if (!base64mode) {
+                i_debug("fingerprint: %s", peer_fingerprint);
+            } else {
+                i_debug("fingerprint_compressed: %s", peer_fingerprint);
+            }
+        }
+    }
+    
+    if (proxy->set->ssl_cert_info) {
+        if (!base64mode) {
+            i_info("x509 fingerprint found: %s", peer_fingerprint);
+        } else {
+            i_info("x509 fingerprint_compressed found: %s", peer_fingerprint);
+        }
+    }
+
+    if (base64mode) {
+        peer_fingerprint_base64 = i_malloc(md_len * 3);
+        fingerprint_ascii_ptr   = peer_fingerprint;
+        /* convert hex to int array */
+        while(sscanf(fingerprint_ascii_ptr,"%02x",&num) == 1){
+            fingerprint_ascii_ptr += 2;
+            arr[index] = num;
+            index++;
+            if (proxy->set->ssl_cert_debug) {
+                i_debug("fingerprint_binary: %s", arr);
+            }
+        }
+        if (proxy->set->ssl_cert_debug) {
+            i_debug("x509 fingerprint_binary: %s", arr);
+        }
+        i_free(peer_fingerprint);
+        return (const char *)__base64(arr, index);
+    }
+
+    /* non base64 case */
+    return (const char *)peer_fingerprint;
+}
+
+char *__base64(const char *input, int length)
+{
+    char *buff;
+
+    BIO *bmem, *b64;
+    BUF_MEM *bptr;
+        
+    b64 = BIO_new(BIO_f_base64());
+    bmem = BIO_new(BIO_s_mem());
+    b64 = BIO_push(b64, bmem);
+    BIO_write(b64, input, length);
+    BIO_flush(b64);  
+    BIO_get_mem_ptr(b64, &bptr);
+
+    buff = i_malloc(bptr->length);
+    memcpy(buff, bptr->data, bptr->length-1);
+    buff[bptr->length-1] = 0;
+
+    BIO_free_all(b64);
+    
+    return buff;
 }
 
 #endif

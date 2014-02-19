@@ -216,8 +216,7 @@ void auth_request_export(struct auth_request *request, string_t *dest)
 	if (request->requested_login_user != NULL) {
 		auth_str_add_keyvalue(dest, "requested-login-user",
 				      request->requested_login_user);
-	}
-
+	}	
 	if (request->local_ip.family != 0) {
 		auth_str_add_keyvalue(dest, "lip",
 				      net_ip2addr(&request->local_ip));
@@ -309,6 +308,10 @@ bool auth_request_import_auth(struct auth_request *request,
 		request->no_penalty = TRUE;
 	else if (strcmp(key, "valid-client-cert") == 0)
 		request->valid_client_cert = TRUE;
+	else if (strcmp(key, "cert_loginname") == 0)   
+		request->cert_loginname = p_strdup(request->pool, value);
+	else if (strcmp(key, "cert_fingerprint") == 0)   
+		request->cert_fingerprint = p_strdup(request->pool, value);
 	else if (strcmp(key, "cert_username") == 0) {
 		if (request->set->ssl_username_from_cert) {
 			/* get username from SSL certificate. it overrides
@@ -2012,7 +2015,7 @@ auth_request_var_expand_static_tab[AUTH_REQUEST_VAR_TAB_COUNT+1] = {
 	{ 'c', NULL, "secured" },
 	{ 'a', NULL, "lport" },
 	{ 'b', NULL, "rport" },
-	{ 'k', NULL, "cert" },
+	{ 'k', NULL, "cert" },	
 	{ '\0', NULL, "login_user" },
 	{ '\0', NULL, "login_username" },
 	{ '\0', NULL, "login_domain" },
@@ -2025,6 +2028,8 @@ auth_request_var_expand_static_tab[AUTH_REQUEST_VAR_TAB_COUNT+1] = {
 	{ '\0', NULL, "domain_last" },
 	{ '\0', NULL, "master_user" },
 	{ '\0', NULL, "session_pid" },
+	{ 'z', NULL, "cert_loginname" },
+	{ 'f', NULL, "cert_fingerprint" },
 	/* be sure to update AUTH_REQUEST_VAR_TAB_COUNT */
 	{ '\0', NULL, NULL }
 };
@@ -2080,7 +2085,7 @@ auth_request_get_var_expand_table_full(const struct auth_request *auth_request,
 	tab[11].value = auth_request->secured ? "secured" : "";
 	tab[12].value = dec2str(auth_request->local_port);
 	tab[13].value = dec2str(auth_request->remote_port);
-	tab[14].value = auth_request->valid_client_cert ? "valid" : "";
+	tab[14].value = auth_request->valid_client_cert ? "valid" : "";	
 
 	if (auth_request->requested_login_user != NULL) {
 		const char *login_user = auth_request->requested_login_user;
@@ -2114,6 +2119,12 @@ auth_request_get_var_expand_table_full(const struct auth_request *auth_request,
 		escape_func(auth_request->master_user, auth_request);
 	tab[26].value = auth_request->session_pid == (pid_t)-1 ? NULL :
 		dec2str(auth_request->session_pid);
+	if (auth_request->cert_loginname != NULL) {
+		tab[27].value = strchr(auth_request->cert_loginname, '@');
+	}
+	if (auth_request->cert_fingerprint != NULL) {
+		tab[28].value = strchr(auth_request->cert_fingerprint, '@');
+	}
 	return ret_tab;
 }
 

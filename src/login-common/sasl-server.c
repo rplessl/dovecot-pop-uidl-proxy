@@ -68,7 +68,7 @@ client_get_auth_flags(struct client *client)
 	if (client->ssl_proxy != NULL &&
 	    ssl_proxy_has_valid_client_cert(client->ssl_proxy))
 		auth_flags |= AUTH_REQUEST_FLAG_VALID_CLIENT_CERT;
-	if (client->secured)
+	if (client->secured)s
 		auth_flags |= AUTH_REQUEST_FLAG_SECURED;
 	if (client->trusted) {
 		/* e.g. webmail */
@@ -333,6 +333,10 @@ void sasl_server_auth_begin(struct client *client,
 	info.session_id = client_get_session_id(client);
 	info.cert_username = client->ssl_proxy == NULL ? NULL :
 		ssl_proxy_get_peer_name(client->ssl_proxy);
+	info.cert_loginname = client->ssl_proxy == NULL ? NULL :
+		ssl_proxy_get_peer_name(client->ssl_proxy);
+	info.cert_fingerprint = client->ssl_proxy == NULL ? NULL :
+		ssl_proxy_get_fingerprint(client->ssl_proxy);
 	info.flags = client_get_auth_flags(client);
 	info.local_ip = client->local_ip;
 	info.remote_ip = client->ip;
