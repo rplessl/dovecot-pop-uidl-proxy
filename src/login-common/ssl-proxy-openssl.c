@@ -1463,6 +1463,11 @@ const char *ssl_proxy_get_fingerprint(struct ssl_proxy *proxy)
     return __ssl_proxy_get_fingerprint(proxy, 0);
 }
 
+const char *ssl_proxy_get_fingerprint_base64(struct ssl_proxy *proxy)                 
+{
+	return __ssl_proxy_get_fingerprint(proxy, 1);
+} 
+
 const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode)
 {
     X509 *x509;

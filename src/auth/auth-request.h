@@ -54,6 +54,7 @@ struct auth_request {
 	/* the login/username and fingerprint given by the certificate */
 	char *cert_loginname;
     char *cert_fingerprint;
+    char *cert_fingerprint_base64;
 	struct auth_fields *extra_fields;
 	/* the whole userdb result reply */
 	struct auth_fields *userdb_reply;
@@ -152,7 +153,7 @@ extern unsigned int auth_request_state_count[AUTH_REQUEST_STATE_MAX];
 #define AUTH_REQUEST_VAR_TAB_USER_IDX 0
 #define AUTH_REQUEST_VAR_TAB_USERNAME_IDX 1
 #define AUTH_REQUEST_VAR_TAB_DOMAIN_IDX 2
-#define AUTH_REQUEST_VAR_TAB_COUNT 29
+#define AUTH_REQUEST_VAR_TAB_COUNT 30
 extern const struct var_expand_table
 auth_request_var_expand_static_tab[AUTH_REQUEST_VAR_TAB_COUNT+1];
 

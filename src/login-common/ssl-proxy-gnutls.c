@@ -66,6 +66,11 @@ const char *ssl_proxy_get_fingerprint(struct ssl_proxy *proxy __attr_unused__)
 	return NULL;
 }
 
+const char *ssl_proxy_get_fingerprint_base64(struct ssl_proxy *proxy __attr_unused__)
+{
+	return NULL;
+}
+
 static int handle_ssl_error(struct ssl_proxy *proxy, int error)
 {
 	if (!gnutls_error_is_fatal(error)) {

@@ -312,6 +312,8 @@ bool auth_request_import_auth(struct auth_request *request,
 		request->cert_loginname = p_strdup(request->pool, value);
 	else if (strcmp(key, "cert_fingerprint") == 0)   
 		request->cert_fingerprint = p_strdup(request->pool, value);
+	else if (strcmp(key, "cert_fingerprint_base64") == 0)
+		request->cert_fingerprint_base64 = p_strdup(request->pool, value);
 	else if (strcmp(key, "cert_username") == 0) {
 		if (request->set->ssl_username_from_cert) {
 			/* get username from SSL certificate. it overrides
@@ -2030,6 +2032,7 @@ auth_request_var_expand_static_tab[AUTH_REQUEST_VAR_TAB_COUNT+1] = {
 	{ '\0', NULL, "session_pid" },
 	{ 'z', NULL, "cert_loginname" },
 	{ 'f', NULL, "cert_fingerprint" },
+	{ 'F', NULL, "cert_fingerprint_base64" },
 	/* be sure to update AUTH_REQUEST_VAR_TAB_COUNT */
 	{ '\0', NULL, NULL }
 };
@@ -2124,6 +2127,9 @@ auth_request_get_var_expand_table_full(const struct auth_request *auth_request,
 	}
 	if (auth_request->cert_fingerprint != NULL) {
 		tab[28].value = strchr(auth_request->cert_fingerprint, '@');
+	}
+	if (auth_request->cert_fingerprint_base64 != NULL) {
+		tab[29].value = strchr(auth_request->cert_fingerprint_base64, '@');
 	}
 	return ret_tab;
 }
