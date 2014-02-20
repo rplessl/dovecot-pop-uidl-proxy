@@ -604,6 +604,13 @@ auth_request_handle_passdb_callback(enum passdb_result *result,
 		request->skip_password_check = TRUE;
 	}
 
+	if (request->passdb->set->user_valid) {
+            auth_request_log_info(request, "passdb",
+                                  "User not found but should be valid user");
+            *result = PASSDB_RESULT_USER_UNKNOWN;
+            return TRUE;
+	}
+
 	if (request->requested_login_user != NULL &&
 	    *result == PASSDB_RESULT_OK) {
 		auth_request_master_lookup_finish(request);
@@ -613,6 +620,7 @@ auth_request_handle_passdb_callback(enum passdb_result *result,
 	} else {
 		next_passdb = request->passdb->next;
 	}
+
 	while (next_passdb != NULL &&
 	       auth_request_want_skip_passdb(request, next_passdb))
 		next_passdb = next_passdb->next;
