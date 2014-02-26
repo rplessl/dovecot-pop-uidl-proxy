@@ -68,7 +68,7 @@ client_get_auth_flags(struct client *client)
 	if (client->ssl_proxy != NULL &&
 	    ssl_proxy_has_valid_client_cert(client->ssl_proxy))
 		auth_flags |= AUTH_REQUEST_FLAG_VALID_CLIENT_CERT;
-	if (client->secured)s
+	if (client->secured)
 		auth_flags |= AUTH_REQUEST_FLAG_SECURED;
 	if (client->trusted) {
 		/* e.g. webmail */
