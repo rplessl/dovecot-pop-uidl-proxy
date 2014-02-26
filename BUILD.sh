@@ -3,7 +3,7 @@
 # for local tests
 # BEGIN CUT
 PREFIX=$HOME/opt/dovecot-2.2-build
-ERPEFIX=$PREFIX
+EPREFIX=$PREFIX
 # END CUT
 
 PREFIX=${PREFIX:-/opt/dovecot-2.2-build}
