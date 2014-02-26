@@ -160,7 +160,7 @@ static int ssl_server_context_cmp(const struct ssl_server_context *ctx1,
 		return 1;
 	if (null_strcmp(ctx1->cipher_list, ctx2->cipher_list) != 0)
 		return 1;
-	if (null_strcmp(ctx1->verify_depth != ctx2->verify_depth) != 0)
+	if (null_strcmp(ctx1->verify_depth, ctx2->verify_depth) != 0)
 		return 1;
 	if (null_strcmp(ctx1->protocols, ctx2->protocols) != 0)
 		return 1;
