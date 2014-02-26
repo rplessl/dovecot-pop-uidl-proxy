@@ -1,4 +1,4 @@
-x/* Copyright (c) 2002-2013 Dovecot authors, see the included COPYING file */
+/* Copyright (c) 2002-2013 Dovecot authors, see the included COPYING file */
 
 #include "login-common.h"
 #include "array.h"
@@ -160,13 +160,18 @@ static int ssl_server_context_cmp(const struct ssl_server_context *ctx1,
 		return 1;
 	if (null_strcmp(ctx1->cipher_list, ctx2->cipher_list) != 0)
 		return 1;
-	if (null_strcmp(ctx1->verify_depth != ctx2->verify_depth) != 0)
-		return 1;
 	if (null_strcmp(ctx1->protocols, ctx2->protocols) != 0)
 		return 1;
+	if (ctx1->verify_depth != ctx2->verify_depth) 
+		return 1;
+	if (ctx1->verify_client_cert != ctx2->verify_client_cert) 
+		return 1;
 
-	return ctx1->verify_client_cert == ctx2->verify_client_cert ? 0 : 1;
+    return 0;
+
 }
+
+
 
 static void ssl_params_corrupted(const char *reason)
 {
@@ -742,7 +747,7 @@ const char *ssl_proxy_get_peer_name(struct ssl_proxy *proxy)
 	}
 	X509_free(x509);
  
- 	if (proxy->set->ssl_cert_info) 
+ 	if (proxy->ssl_set->ssl_cert_info) 
         i_info("x509 name found in certificate \"%s\" ...", name);
 	
 	return *name == '\0' ? NULL : name;
@@ -1280,7 +1285,7 @@ ssl_server_context_init(const struct login_settings *login_set,
 	ctx->key = p_strdup(pool, ssl_set->ssl_key);
 	ctx->ca = p_strdup(pool, ssl_set->ssl_ca);
 	ctx->cipher_list = p_strdup(pool, ssl_set->ssl_cipher_list);
-	ctx->verify_depth = set->ssl_verify_depth;
+	ctx->verify_depth = ssl_set->ssl_verify_depth;
 	ctx->protocols = p_strdup(pool, ssl_set->ssl_protocols);
 	ctx->verify_client_cert = ssl_set->ssl_verify_client_cert ||
 		login_set->auth_ssl_require_client_cert ||
@@ -1471,9 +1476,8 @@ const char *ssl_proxy_get_fingerprint_base64(struct ssl_proxy *proxy)
 const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode)
 {
     X509 *x509;
-    char *peer_fingerprint = NULL;
-    char *ssl_cert_md_algorithm = NULL;
-    const struct login_settings *set = global_login_settings;
+    char *peer_fingerprint = NULL;    
+    char *ssl_cert_md_algorithm = NULL;    
     const EVP_MD *md_alg;
     unsigned char md_buf[EVP_MAX_MD_SIZE];
     unsigned int md_len;
@@ -1493,7 +1497,7 @@ const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode
     if (x509 == NULL)
         return NULL; /* we should have had it.. */
 
-    ssl_cert_md_algorithm = set->ssl_cert_md_algorithm;
+    ssl_cert_md_algorithm = t_strdup_printf("%s", proxy->ssl_set->ssl_cert_md_algorithm);
     
     if ((md_alg = EVP_get_digestbyname(ssl_cert_md_algorithm)) == 0) {
         i_panic("Certificate digest algorithm \"%s\" not found ...",
@@ -1527,7 +1531,7 @@ const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode
             peer_fingerprint[(j * 2) + 1] = hexcodes[(md_buf[j] & 0x0f)];
         }
         
-        if (proxy->set->ssl_cert_debug) {
+        if (proxy->ssl_set->ssl_cert_debug) {
             if (!base64mode) {
                 i_debug("fingerprint: %s", peer_fingerprint);
             } else {
@@ -1536,7 +1540,7 @@ const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode
         }
     }
     
-    if (proxy->set->ssl_cert_info) {
+    if (proxy->ssl_set->ssl_cert_info) {
         if (!base64mode) {
             i_info("x509 fingerprint found: %s", peer_fingerprint);
         } else {
@@ -1545,18 +1549,17 @@ const char *__ssl_proxy_get_fingerprint(struct ssl_proxy *proxy, bool base64mode
     }
 
     if (base64mode) {
-        peer_fingerprint_base64 = i_malloc(md_len * 3);
         fingerprint_ascii_ptr   = peer_fingerprint;
         /* convert hex to int array */
         while(sscanf(fingerprint_ascii_ptr,"%02x",&num) == 1){
             fingerprint_ascii_ptr += 2;
             arr[index] = num;
             index++;
-            if (proxy->set->ssl_cert_debug) {
+            if (proxy->ssl_set->ssl_cert_debug) {
                 i_debug("fingerprint_binary: %s", arr);
             }
         }
-        if (proxy->set->ssl_cert_debug) {
+        if (proxy->ssl_set->ssl_cert_debug) {
             i_debug("x509 fingerprint_binary: %s", arr);
         }
         i_free(peer_fingerprint);
