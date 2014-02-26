@@ -55,7 +55,7 @@ static const struct master_service_ssl_settings master_service_ssl_default_setti
 	.ssl_verify_client_cert = FALSE,
 	.ssl_require_crl = TRUE,
 	.verbose_ssl = FALSE,
-	.ssl_prefer_server_ciphers = FALSE
+	.ssl_prefer_server_ciphers = FALSE,
 	.ssl_cert_info = FALSE,
 	.ssl_cert_debug = FALSE,
 };
