@@ -1352,6 +1352,7 @@ struct auth_passdb_settings {
 	bool deny;
 	bool pass; /* deprecated, use result_success=continue instead */
 	bool master;
+	bool user_valid;
 };
 struct auth_userdb_settings {
 	const char *driver;
