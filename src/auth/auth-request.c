@@ -2131,13 +2131,12 @@ auth_request_get_var_expand_table_full(const struct auth_request *auth_request,
 	tab[26].value = auth_request->session_pid == (pid_t)-1 ? NULL :
 		dec2str(auth_request->session_pid);
 	if (auth_request->cert_loginname != NULL) {
-		tab[27].value = strchr(auth_request->cert_loginname, '@');
-	}
+		tab[27].value = escape_func(auth_request->cert_loginname, auth_request);
 	if (auth_request->cert_fingerprint != NULL) {
-		tab[28].value = strchr(auth_request->cert_fingerprint, '@');
+		tab[28].value = escape_func(auth_request->cert_fingerprint, auth_request);
 	}
 	if (auth_request->cert_fingerprint_base64 != NULL) {
-		tab[29].value = strchr(auth_request->cert_fingerprint_base64, '@');
+		tab[29].value = escape_func(auth_request->cert_fingerprint_base64, auth_request);
 	}
 	return ret_tab;
 }
