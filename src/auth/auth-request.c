@@ -2132,6 +2132,7 @@ auth_request_get_var_expand_table_full(const struct auth_request *auth_request,
 		dec2str(auth_request->session_pid);
 	if (auth_request->cert_loginname != NULL) {
 		tab[27].value = escape_func(auth_request->cert_loginname, auth_request);
+	}
 	if (auth_request->cert_fingerprint != NULL) {
 		tab[28].value = escape_func(auth_request->cert_fingerprint, auth_request);
 	}
