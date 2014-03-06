@@ -3821,6 +3821,8 @@ static const struct setting_define auth_passdb_setting_defines[] = {
 	DEF(SET_BOOL, pass),
 	DEF(SET_BOOL, master),
 
+	DEF(SET_BOOL, user_valid),
+
 	SETTING_DEFINE_LIST_END
 };
 static const struct auth_passdb_settings auth_passdb_default_settings = {
@@ -3836,7 +3838,8 @@ static const struct auth_passdb_settings auth_passdb_default_settings = {
 
 	.deny = FALSE,
 	.pass = FALSE,
-	.master = FALSE
+	.master = FALSE,
+	.user_valid = FALSE
 };
 const struct setting_parser_info auth_passdb_setting_parser_info = {
 	.defines = auth_passdb_setting_defines,
