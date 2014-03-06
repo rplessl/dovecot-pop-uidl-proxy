@@ -9,18 +9,6 @@ passdb {
   args = /etc/dovecot/dovecot-ldap.conf.ext
 }
 
-# If you need multiple LDAP queries for validating and fetch user data from
-# LDAP request you can use a two step authentication, for example:
-# passdb ldap {
-#     args = /etc/dovecot/ldap-stage1.conf
-#     user_valid = yes
-#     pass = yes
-#  }
-#   
-#  passdb ldap {
-#     args = /etc/dovecot/ldap-stage2.conf
-#  }
-
 # "prefetch" user database means that the passdb already provided the
 # needed information and there's no need to do a separate userdb lookup.
 # <doc/wiki/UserDatabase.Prefetch.txt>
