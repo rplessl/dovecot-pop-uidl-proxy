@@ -3,7 +3,7 @@
 # for local tests
 # BEGIN CUT
 PREFIX=$HOME/opt/dovecot-2.2-build
-ERPEFIX=$PREFIX
+EPREFIX=$PREFIX
 # END CUT
 
 PREFIX=${PREFIX:-/opt/dovecot-2.2-build}
@@ -23,4 +23,5 @@ export PATH=$EPREFIX/bin:$PATH
 ./configure \
 	--prefix=$PREFIX \
 	--exec-prefix=$EPREFIX \
-	--with-sqlite
+	--with-sqlite \
+	--with-ldap

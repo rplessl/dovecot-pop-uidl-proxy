@@ -374,10 +374,13 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AM_CPPFLAGS = \
-	-I$(top_srcdir)/src/lib \
-	-I$(top_srcdir)/src/lib-mail \
-	-I$(top_srcdir)/src/lib-index \
-	-I$(top_srcdir)/src/lib-storage
+        -I$(top_srcdir)/src/lib \
+        -I$(top_srcdir)/src/lib-mail \
+        -I$(top_srcdir)/src/lib-index \
+        -I$(top_srcdir)/src/lib-storage \
+        -I$(top_srcdir)/src/lib-storage/index \
+        -I$(top_srcdir)/src/lib-storage/index/pop3c \
+        $(SQL_CFLAGS)
 
 lib05_pop3_uidl_proxy_plugin_la_LDFLAGS = -module -avoid-version
 module_LTLIBRARIES = \
